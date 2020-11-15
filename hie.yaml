@@ -1,4 +1,10 @@
 cradle:
   stack:
-    - path: "./src/Main.hs"
+    - path: "./src"
+      component: "chaos-renderer:lib"
+
+    - path: "./app/Main.hs"
       component: "chaos-renderer:exe:chaos-renderer"
+
+    - path: "./test"
+      component: "chaos-renderer:test:interpolation-test"
