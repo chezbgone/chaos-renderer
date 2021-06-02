@@ -42,33 +42,27 @@ data MandlebrotProps = MandlebrotProps
 magnitude2 :: RealFloat a => Complex a -> a
 magnitude2 (x :+ y) = x*x + y*y
 
-inMandlebrot :: ComputationProps -> Complex Double -> Bool
-inMandlebrot ComputationProps{ maxIterations, escapeRadius } c =
+inCardioid :: Complex Double -> Bool
+inCardioid (x :+ y) =
+    let q = (x - 1/4)^2 + y^2
+     in q * (q + x - 1/4) <= 1/4 * y^2
+
+inBulb1 :: Complex Double -> Bool
+inBulb1 (x :+ y) = (x + 1)^2 + y^2 <= 1/16
+
+-- https://en.wikipedia.org/wiki/Plotting_algorithms_for_the_Mandelbrot_set#Cardioid_/_bulb_checking
+mandlebrotEsc' :: ComputationProps -> Complex Double -> Int
+mandlebrotEsc' ComputationProps{ maxIterations, escapeRadius } c =
     let f z = z^2 + c
         orbit = iterate' f 0
-    in all (\p -> magnitude2 p < escapeRadius^2) $ take maxIterations orbit
-
-bwPixel :: Bool -> PixelRGB8
-bwPixel b = if b then PixelRGB8 0 0 0 else PixelRGB8 255 255 255
-
-mandlebrotBW :: MandlebrotProps -> DynamicImage
-mandlebrotBW mp =
-    let cp = computationProps mp
-        RenderProps{ resolution=Resolution{ width, height }
-                   , bounds=Bounds{ top, bottom, left, right } } = renderProps mp
-        dx = (right - left) / fromIntegral width
-        dy = (top - bottom) / fromIntegral height
-        complex x y = (left + fromIntegral x * dx) :+ (top - fromIntegral y * dy)
-    in ImageRGB8 $ generateImage (\x y -> bwPixel $ inMandlebrot cp $ complex x y) width height
-
-
-
-mandlebrotEsc :: ComputationProps -> Complex Double -> Int
-mandlebrotEsc ComputationProps{ maxIterations, escapeRadius } c =
-    let f z = z^2 + c
-        orbit = iterate' f 0
-    in length $ takeWhile (\p -> magnitude2 p < escapeRadius^2)
+     in length $ takeWhile (\p -> magnitude2 p < escapeRadius^2)
               $ take maxIterations orbit
+
+-- optimized
+mandlebrotEsc :: ComputationProps -> Complex Double -> Int
+mandlebrotEsc cp c = if inCardioid c || inBulb1 c
+                         then maxIterations cp
+                         else mandlebrotEsc' cp c
 
 xs = (255*) <$> [0, 0.16, 0.42, 0.6425, 0.8575]
 rs = [0, 32, 237, 255, 0]
@@ -80,8 +74,9 @@ gf = interpolate $ piecewiseMonotonicCurve $ zip xs gs
 bf = interpolate $ piecewiseMonotonicCurve $ zip xs bs
 
 intPixel :: Int -> PixelRGB8
-intPixel esc = let esc' = fromIntegral esc
-    in PixelRGB8 (round $ rf esc') (round $ gf esc') (round $ bf esc')
+intPixel esc =
+    let esc' = fromIntegral esc
+     in PixelRGB8 (round $ rf esc') (round $ gf esc') (round $ bf esc')
 
 mandlebrotInt :: MandlebrotProps -> DynamicImage
 mandlebrotInt mp =
@@ -91,7 +86,7 @@ mandlebrotInt mp =
         dx = (right - left) / fromIntegral width
         dy = (top - bottom) / fromIntegral height
         complex x y = (left + fromIntegral x * dx) :+ (top - fromIntegral y * dy)
-    in ImageRGB8 $ generateImage (\x y -> intPixel $ mandlebrotEsc cp $ complex x y) width height
+     in ImageRGB8 $ generateImage (\x y -> intPixel $ mandlebrotEsc cp $ complex x y) width height
 
 
 
