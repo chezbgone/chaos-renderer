@@ -1,10 +1,10 @@
 cradle:
-  stack:
-    - path: "./src"
-      component: "chaos-renderer:lib"
+  cabal:
+    - path: "src"
+      component: "lib:chaos-renderer"
 
-    - path: "./app/Main.hs"
+    - path: "app/Main.hs"
       component: "chaos-renderer:exe:chaos-renderer"
 
-    - path: "./test"
+    - path: "test"
       component: "chaos-renderer:test:interpolation-test"

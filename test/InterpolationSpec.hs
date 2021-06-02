@@ -17,22 +17,25 @@ qcProps :: TestTree
 qcProps = testGroup "(tested by QuickCheck)"
     [ QC.testProperty "derivative zero at local extrema" $
         \y0 y1 y2 ->
-            (y0 > y1 && y1 < y2) || (y0 < y1 && y1 > y2) QC.==>
-                tangentSlopes (secantSlopes [(0, y0), (1, y1), (2, y2)]) !! 1 == 0
+            let (y0', y1', y2') =
+                    -- make sure y1 is either the maximum or minimum
+                    if (y0 > y1 && y1 < y2) || (y0 < y1 && y1 > y2)
+                       then (y0, y1, y2) else (y1, y0, y2)
+            in tangentSlopes (secantSlopes [(0, y0'), (1, y1'), (2, y2')]) !! 1 == 0
     , QC.testProperty "curves do not overshoot" $
         withMaxSuccess 1000 $
         \y0 y1 y2 y3 x ->
             let points = [(-1, y0), (0, y1), (1, y2), (2, y3)]
-                x' = snd $ properFraction $ abs x
-                y = eval (piecewiseMonotonicCurve points) x'
+                (_, x') = properFraction $ abs x
+                y = interpolate (piecewiseMonotonicCurve points) x'
             in y1 <= y && y <= y2 || y1 >= y && y >= y2
     ]
 
 unitTests :: TestTree
 unitTests = testGroup "Unit tests"
     [ testCase "line segment" $ do
-        let interpolate = eval $ piecewiseMonotonicCurve [(0, 0), (1, 1)]
-        mapM_ (\x -> x @~? interpolate x) [ 0
+        let eval = interpolate $ piecewiseMonotonicCurve [(0, 0), (1, 1)]
+        mapM_ (\x -> x @~? eval x) [ 0
                                           , 0.0009940338877736
                                           , 0.1518801527149218
                                           , 0.2921518901599145
@@ -44,9 +47,9 @@ unitTests = testGroup "Unit tests"
                                           , 0.9930867051019727
                                           , 1 ]
     , testCase "constant function" $ do
-        let interpolate = eval $ piecewiseMonotonicCurve
+        let eval = interpolate $ piecewiseMonotonicCurve
               [(-1, 2), (0, 0), (1, 0), (2, -6)]
-        mapM_ (\x -> 0 @~? interpolate x) [ 0
+        mapM_ (\x -> 0 @~? eval x) [ 0
                                           , 0.0091093502544188
                                           , 0.1603816952625086
                                           , 0.3572486465068517
@@ -58,9 +61,9 @@ unitTests = testGroup "Unit tests"
                                           , 0.7322642954197155
                                           , 1 ]
     , testCase "curve with no overshoot" $ do
-        let interpolate = eval $ piecewiseMonotonicCurve
+        let eval = interpolate $ piecewiseMonotonicCurve
               [(0, 0), (1, 0.5), (2, 2)]
-        mapM_ (interpolateBound interpolate)
+        mapM_ (interpolateBound eval)
               [ (0, 0, 0)
               , (0.01, 0, 0.5)
               , (0.99, 0, 0.5)
@@ -69,9 +72,9 @@ unitTests = testGroup "Unit tests"
               , (1.99, 0.5, 2)
               , (2, 2, 2)]
     , testCase "curve originally with overshoot below" $ do
-        let interpolate = eval $ piecewiseMonotonicCurve
+        let eval = interpolate $ piecewiseMonotonicCurve
               [(0, 0), (1, 0.2), (2, 3)]
-        mapM_ (interpolateBound interpolate)
+        mapM_ (interpolateBound eval)
               [ (0, 0, 0)
               , (0.01, 0, 0.2)
               , (0.99, 0, 0.2)
@@ -80,9 +83,9 @@ unitTests = testGroup "Unit tests"
               , (1.99, 0.2, 3)
               , (2, 3, 3)]
     , testCase "curve originally with overshoot above" $ do
-        let interpolate = eval $ piecewiseMonotonicCurve
+        let eval = interpolate $ piecewiseMonotonicCurve
               [(0, 3), (1, 2.8), (2, 0)]
-        mapM_ (interpolateBound interpolate)
+        mapM_ (interpolateBound eval)
               [ (0, 3, 3)
               , (0.01, 2.8, 3)
               , (0.99, 2.8, 3)
@@ -91,9 +94,9 @@ unitTests = testGroup "Unit tests"
               , (1.99, 0, 2.8)
               , (2, 0, 0)]
     , testCase "zig zag" $ do
-        let interpolate = eval $ piecewiseMonotonicCurve
+        let eval = interpolate $ piecewiseMonotonicCurve
               [(-1, 1), (0, 0), (1, 1), (2, 0)]
-        mapM_ (interpolateBound interpolate)
+        mapM_ (interpolateBound eval)
               [ (-1, 1, 1)
               , (-0.1, 0, 1)
               , (0, 0, 0)
@@ -109,8 +112,8 @@ unitTests = testGroup "Unit tests"
 
 interpolateBound :: (Double -> Double) -> (Double, Double, Double) -> Assertion
 interpolateBound interpolate (x, min, max) =
-    assertBool ("  interpolation overshot at " ++ show x ++ "\n  " ++
-            show actual ++ " not in [" ++ show min ++ ", "++ show max ++ "]")
+    assertBool ("  interpolation overshot at " <> show x <> "\n  " <>
+            show actual <> " not in [" <> show min <> ", "  <> show max <> "]")
         (min <= actual && actual <= max)
     where actual = interpolate x
 
